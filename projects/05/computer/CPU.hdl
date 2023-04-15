@@ -1,0 +1,160 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/05/CPU.hdl
+
+/**
+ * The Hack CPU (Central Processing unit), consisting of an ALU,
+ * two registers named A and D, and a program counter named PC.
+ * The CPU is designed to fetch and execute instructions written in 
+ * the Hack machine language. In particular, functions as follows:
+ * Executes the inputted instruction according to the Hack machine 
+ * language specification. The D and A in the language specification
+ * refer to CPU-resident registers, while M refers to the external
+ * memory location addressed by A, i.e. to Memory[A]. The inM input 
+ * holds the value of this location. If the current instruction needs 
+ * to write a value to M, the value is placed in outM, the address 
+ * of the target location is placed in the addressM output, and the 
+ * writeM control bit is asserted. (When writeM==0, any value may 
+ * appear in outM). The outM and writeM outputs are combinational: 
+ * they are affected instantaneously by the execution of the current 
+ * instruction. The addressM and pc outputs are clocked: although they 
+ * are affected by the execution of the current instruction, they commit 
+ * to their new values only in the next time step. If reset==1 then the 
+ * CPU jumps to address 0 (i.e. pc is set to 0 in next time step) rather 
+ * than to the address resulting from executing the current instruction. 
+ */
+
+/*
+A instruction 0vvv_vvvv_vvvv_vvvv (v... 15 bit address)
+ 
+C instruction 1xxa_cccc_ccdd_djjj 
+
+dest = comp ; jmp
+
+d d d (dest)
+A D M
+1 <------ A Register
+  1 <---- D Register
+    1 <-- RAM[A]
+
+(comp) 
+c c c c c c  | a=0  | a=1  |
+1 1 1 1 1 1  | 1    | null | ~(~0 + ~0 )
+1 0 1 0 1 0  | 0    | null |    0 +  0
+
+0 0 1 1 0 0  | D    | null |    D & ~0
+0 0 1 1 0 1  | !D   | null | ~( D & ~0 )
+0 0 1 1 1 1  | -D   | null | ~( D + ~0 )
+0 1 1 1 1 1  | D+1  | null | ~(~D + ~0 )
+0 0 1 1 1 0  | D-1  | null |    D + ~0
+
+1 1 0 0 0 0  | A    | M    |
+1 1 0 0 0 1  | !A   | !M   |
+1 1 0 0 1 1  | -A   | -M   |
+1 1 0 1 1 1  | A+1  | M+1  |
+1 1 0 0 1 0  | A-1  | M-1  |
+
+0 0 0 0 0 0  | D&A  | D&M  |    D &  A
+0 1 0 1 0 1  | D|A  | D|M  | ~(~D & ~A )
+0 0 0 1 1 1  | A-D  | M-D  | ~( D + ~A )
+0 1 0 0 1 1  | D-A  | D-M  | ~(~D +  A )
+0 0 0 0 1 0  | D+A  | D+M  |    D +  A
+
+↳            set D = 0
+  ↳          set D = !D
+    ↳        set A = 0
+      ↳      set A = !A
+        ↳    D+A if f == 0 else D&A
+          ↳  negate output 
+ 
+
+j j j (jump)
+0 0 0  --> null
+0 0 1  --> JGT
+0 1 0  --> JEQ
+0 1 1  --> JGE
+1 0 0  --> JLT
+1 0 1  --> JNE
+1 1 0  --> JLE
+1 1 1  --> JMP
+
+
+if jump:
+    PC = A
+else:
+    PC += 1
+
+if reset:
+    PC = 1
+*/
+
+CHIP CPU {
+
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset==1) or continue executing
+                         // the current program (reset==0).
+
+    OUT outM[16],        // M value output
+        writeM,          // Write to M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+
+    PARTS:
+    // Put your code here:
+    /* judge instr type */
+    Not(in=instruction[15], out=aInstr);
+    Not(in=aInstr, out=cInstr);
+
+    /* Mux before A-register */
+    And(a=cInstr, b=instruction[5], out=aluToA);
+    Mux16(a=instruction, b=outM1, sel= aluToA, out=aRegIn);           
+    
+    /* A-register */
+    // load A if aInstr or (CInstr and dest to aReg)
+    Or(a=aInstr, b=aluToA, out=loadA);
+    ARegister(in=aRegIn, load=loadA, out=aRegOut, out[0..14]=addressM);
+
+    /* Mux beofre ALU */
+    // selct A or M based on a bit
+    Mux16(a=aRegOut, b=inM, sel=instruction[12], out=amOut);                           
+    
+    /* D-register */
+    And(a=cInstr, b=instruction[4], out=loadD);
+    DRegister(in=outM1, load=loadD, out=dOut);
+
+    /* ALU */
+    ALU(x=dOut, 
+        y=amOut, 
+        zx=instruction[11],
+        nx=instruction[10],
+        zy=instruction[9],
+        ny=instruction[8], 
+        f =instruction[7], 
+        no=instruction[6],
+        out=outM, 
+        out=outM1,
+        zr=zrOut, 
+        ng=ngOut);
+
+    /* writeM */
+    And(a=cInstr, b=instruction[3], out=writeM);
+    
+    /* PC */
+    Or(a=zrOut, b=ngOut, out=zeroOrNeg);
+    Not(in=zeroOrNeg, out=posOut);
+    And(a=zrOut, b=instruction[1], out=jeq);
+    And(a=ngOut, b=instruction[2], out=jlt);
+    And(a=posOut, b=instruction[0], out=jgt);
+
+    Or(a=jeq, b=jlt, out=jle);
+    Or(a=jeq, b=jgt, out=jge);
+    Or(a=jle, b=jge, out=jumpToA);
+
+    And(a=cInstr, b=jumpToA, out=loadPC);
+    Not(in=loadPC, out=incPC);
+    PC(in=aRegOut, load=loadPC, inc=incPC, reset=reset, out[0..14]=pc);
+    
+}
