@@ -1,6 +1,5 @@
 import re
 from typing import Dict
-
 from sortedcollections import OrderedSet
 
 
