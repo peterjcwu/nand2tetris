@@ -1,8 +1,3 @@
-// -- init --
-@256
-D=A
-@SP
-M=D
 // -- push constant 17 --
 @17
 D=A
@@ -25,28 +20,19 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@13
-M=D
-@SP
-AM=M-1
-D=M
-@13
-D=D-M
+A=A-1
+D=M-D
 @eq.pass.0000
 D;JEQ
 @SP
-A=M
+A=M-1
 M=0
-@SP
-M=M+1
 @eq.after.0001
 0;JMP
 (eq.pass.0000)
 @SP
-A=M
+A=M-1
 M=-1
-@SP
-M=M+1
 (eq.after.0001)
 
 // -- push constant 17 --
@@ -71,28 +57,19 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@13
-M=D
-@SP
-AM=M-1
-D=M
-@13
-D=D-M
+A=A-1
+D=M-D
 @eq.pass.0002
 D;JEQ
 @SP
-A=M
+A=M-1
 M=0
-@SP
-M=M+1
 @eq.after.0003
 0;JMP
 (eq.pass.0002)
 @SP
-A=M
+A=M-1
 M=-1
-@SP
-M=M+1
 (eq.after.0003)
 
 // -- push constant 16 --
@@ -117,28 +94,19 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@13
-M=D
-@SP
-AM=M-1
-D=M
-@13
-D=D-M
+A=A-1
+D=M-D
 @eq.pass.0004
 D;JEQ
 @SP
-A=M
+A=M-1
 M=0
-@SP
-M=M+1
 @eq.after.0005
 0;JMP
 (eq.pass.0004)
 @SP
-A=M
+A=M-1
 M=-1
-@SP
-M=M+1
 (eq.after.0005)
 
 // -- push constant 892 --
@@ -163,28 +131,19 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@13
-M=D
-@SP
-AM=M-1
-D=M
-@13
-D=D-M
+A=A-1
+D=M-D
 @lt.pass.0006
 D;JLT
 @SP
-A=M
+A=M-1
 M=0
-@SP
-M=M+1
 @lt.after.0007
 0;JMP
 (lt.pass.0006)
 @SP
-A=M
+A=M-1
 M=-1
-@SP
-M=M+1
 (lt.after.0007)
 
 // -- push constant 891 --
@@ -209,28 +168,19 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@13
-M=D
-@SP
-AM=M-1
-D=M
-@13
-D=D-M
+A=A-1
+D=M-D
 @lt.pass.0008
 D;JLT
 @SP
-A=M
+A=M-1
 M=0
-@SP
-M=M+1
 @lt.after.0009
 0;JMP
 (lt.pass.0008)
 @SP
-A=M
+A=M-1
 M=-1
-@SP
-M=M+1
 (lt.after.0009)
 
 // -- push constant 891 --
@@ -255,28 +205,19 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@13
-M=D
-@SP
-AM=M-1
-D=M
-@13
-D=D-M
+A=A-1
+D=M-D
 @lt.pass.0010
 D;JLT
 @SP
-A=M
+A=M-1
 M=0
-@SP
-M=M+1
 @lt.after.0011
 0;JMP
 (lt.pass.0010)
 @SP
-A=M
+A=M-1
 M=-1
-@SP
-M=M+1
 (lt.after.0011)
 
 // -- push constant 32767 --
@@ -301,28 +242,19 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@13
-M=D
-@SP
-AM=M-1
-D=M
-@13
-D=D-M
+A=A-1
+D=M-D
 @gt.pass.0012
 D;JGT
 @SP
-A=M
+A=M-1
 M=0
-@SP
-M=M+1
 @gt.after.0013
 0;JMP
 (gt.pass.0012)
 @SP
-A=M
+A=M-1
 M=-1
-@SP
-M=M+1
 (gt.after.0013)
 
 // -- push constant 32766 --
@@ -347,28 +279,19 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@13
-M=D
-@SP
-AM=M-1
-D=M
-@13
-D=D-M
+A=A-1
+D=M-D
 @gt.pass.0014
 D;JGT
 @SP
-A=M
+A=M-1
 M=0
-@SP
-M=M+1
 @gt.after.0015
 0;JMP
 (gt.pass.0014)
 @SP
-A=M
+A=M-1
 M=-1
-@SP
-M=M+1
 (gt.after.0015)
 
 // -- push constant 32766 --
@@ -393,28 +316,19 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@13
-M=D
-@SP
-AM=M-1
-D=M
-@13
-D=D-M
+A=A-1
+D=M-D
 @gt.pass.0016
 D;JGT
 @SP
-A=M
+A=M-1
 M=0
-@SP
-M=M+1
 @gt.after.0017
 0;JMP
 (gt.pass.0016)
 @SP
-A=M
+A=M-1
 M=-1
-@SP
-M=M+1
 (gt.after.0017)
 
 // -- push constant 57 --
@@ -448,12 +362,9 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
+A=A-1
 D=D+M
 M=D
-@SP
-M=M+1
 
 // -- push constant 112 --
 @112
@@ -468,23 +379,22 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
+A=A-1
 D=M-D
 M=D
+
+// -- neg --
 @SP
-M=M+1
+A=M-1
+M=-M
 
 // -- and --
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
-D=D&M
-M=D
-@SP
-M=M+1
+A=A-1
+M=D&M
+
 // -- push constant 82 --
 @82
 D=A
@@ -498,15 +408,10 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
-D=D|M
-M=D
-@SP
-M=M+1
+A=A-1
+M=D|M
+
 // -- not --
 @SP
-AM=M-1
+A=M-1
 M=!M
-@SP
-M=M+1

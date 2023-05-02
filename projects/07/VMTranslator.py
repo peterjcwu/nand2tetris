@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 from abc import ABC
 from typing import List
 _label_counter = 0
@@ -8,9 +9,13 @@ _label_counter = 0
 class VMRowBase(ABC):
     MATCH_RE = re.compile(r".*")
 
-    def __init__(self):
+    def __init__(self, translator):
         self.line: str = ""
         self.lno: int = 0
+        self.file_name = translator.file_name
+
+    def _get_arg(self, i: int) -> str:
+        return self.line.split(" ")[i]
 
     def update(self, line: str, lno: int):
         self.line = line
@@ -38,34 +43,41 @@ class VMRowBase(ABC):
             '@SP',
             'AM=M-1',
             'D=M',
-            '@13',
-            'M=D',
-            '@SP',
-            'AM=M-1',
-            'D=M',
-            '@13',
-            'D=D-M',
+            'A=A-1',
+            'D=M-D',  # stack[1] - stack[0]
         ]
 
     @staticmethod
     def comparison(jump_type: str, pass_label: str, after_label: str):
         return [
             f'@{pass_label}',
-            jump_type,
+            jump_type,  # false
             '@SP',
-            'A=M',
-            'M=0',
-            '@SP',
-            'M=M+1',
+            'A=M-1',
+            'M=0',  # 0 for false
             f'@{after_label}',
             '0;JMP',
             f'({pass_label})',
             '@SP',
-            'A=M',
-            'M=-1',
-            '@SP',
-            'M=M+1',
+            'A=M-1',
+            'M=-1',  # -1 for true
             f'({after_label})',
+        ]
+
+
+class VMRowAdd(VMRowBase):
+    MATCH_RE = re.compile(r"^add", re.I)
+
+    def to_asm(self) -> List[str]:
+        return [
+            f"// -- add --",
+            '@SP',
+            'AM=M-1',
+            'D=M',
+            'A=A-1',
+            'D=D+M',
+            'M=D',
+            ""
         ]
 
 
@@ -78,57 +90,23 @@ class VMRowSub(VMRowBase):
             '@SP',
             'AM=M-1',
             'D=M',
-            '@SP',
-            'AM=M-1',
+            'A=A-1',
             'D=M-D',
             'M=D',
-            '@SP',
-            'M=M+1',
             '',
         ]
 
 
 class VMRowNeg(VMRowBase):
-    MATCH_RE = re.compile(r"neq", re.I)
+    MATCH_RE = re.compile(r"neg", re.I)
 
     def to_asm(self) -> List[str]:
         return [
-            '//--negate--',
+            '// -- neg --',
             '@SP',
-            'AM=M-1',
+            'A=M-1',
             'M=-M',
-            '@SP',
-            'M=M+1',
-        ]
-
-
-class VMRowAdd(VMRowBase):
-    MATCH_RE = re.compile(r"^add", re.I)
-
-    def to_asm(self) -> List[str]:
-        return [
-            f"// -- {self.line} --",
-            '@SP',
-            'AM=M-1',
-            'D=M',
-            '@SP',
-            'AM=M-1',
-            'D=D+M',
-            'M=D',
-            '@SP',
-            'M=M+1',
-            ""
-        ]
-
-
-class VMRowInit(VMRowBase):
-    def to_asm(self) -> List[str]:
-        return [
-            "// -- init --",
-            "@256",
-            "D=A",
-            "@SP",
-            "M=D",
+            ''
         ]
 
 
@@ -140,7 +118,7 @@ class VMRowEq(VMRowBase):
             '// -- eq -- ',
             *self.comparison_pre,
             *self.comparison('D;JEQ', self.get_label("eq.pass"), self.get_label("eq.after")),
-            "",
+            '',
         ]
 
 
@@ -177,12 +155,9 @@ class VMRowAnd(VMRowBase):
             '@SP',
             'AM=M-1',
             'D=M',
-            '@SP',
-            'AM=M-1',
-            'D=D&M',
-            'M=D',
-            '@SP',
-            'M=M+1',
+            'A=A-1',
+            'M=D&M',
+            '',
         ]
 
 
@@ -195,12 +170,9 @@ class VMRowOr(VMRowBase):
             '@SP',
             'AM=M-1',
             'D=M',
-            '@SP',
-            'AM=M-1',
-            'D=D|M',
-            'M=D',
-            '@SP',
-            'M=M+1'
+            'A=A-1',
+            'M=D|M',
+            ''
         ]
 
 
@@ -211,18 +183,16 @@ class VMRowNot(VMRowBase):
         return [
             '// -- not --',
             '@SP',
-            'AM=M-1',
+            'A=M-1',
             'M=!M',
-            '@SP',
-            'M=M+1',
         ]
 
 
 class VMRowPush(VMRowBase):
     MATCH_RE = re.compile("^push", re.I)
 
-    def __init__(self):
-        VMRowBase.__init__(self)
+    def __init__(self, vm_translator):
+        VMRowBase.__init__(self, vm_translator)
         self.var_type: str = ""
         self.val: int = 0
         self.RESERVED_LOC = {
@@ -252,9 +222,8 @@ class VMRowPush(VMRowBase):
             assert self.val <= 7, f"Temp value cannot exceed 7 at line {self.lno}"
             return self.to_asm_offset_push(5)
 
-        elif self.var_type == "static":  # r16-r254
-            assert self.val <= 238, f"Static value cannot exceed 238 at line {self.lno}"
-            return self.to_asm_offset_push(16)
+        elif self.var_type == "static":  # r16-r255
+            return self.to_asm_static_push()
 
         else:
             return self.to_asm_name_push()
@@ -264,6 +233,19 @@ class VMRowPush(VMRowBase):
             f"// -- {self.line} --",
             f"@{self.val}",
             "D=A",
+            "@SP",
+            "A=M",
+            "M=D",
+            "@SP",
+            "M=M+1",
+            ""
+        ]
+
+    def to_asm_static_push(self) -> List[str]:
+        return [
+            f"// -- {self.line} --",
+            f"@{self.file_name}.{self.val}",
+            "D=M",
             "@SP",
             "A=M",
             "M=D",
@@ -307,44 +289,96 @@ class VMRowPop(VMRowPush):
     def to_asm(self) -> List[str]:
         if self.var_type == "pointer":
             assert self.val <= 1
-            rows = self.to_asm_offset_pop(3)
+            return self.to_asm_offset_pop(3)
         elif self.var_type == "temp":
             assert self.val <= 7
-            rows = self.to_asm_offset_pop(5)
+            return self.to_asm_offset_pop(5)
         elif self.var_type == "static":
-            assert self.val <= 238
-            rows = self.to_asm_offset_pop(16)
+            return self.to_asm_static_pop()
         else:
-            rows = self.to_asm_name_pop()
-        return [f"// -- {self.line} -- "] + rows + self._footer
+            return self.to_asm_name_pop()
+
+    def to_asm_offset_pop(self, base_val: int) -> List[str]:
+        return [
+            f"// -- {self.line} --",
+            f"@{self.val + base_val}",
+            "D=A",
+            "@14",
+            "M=D",
+        ] + self._footer
+
+    def to_asm_name_pop(self) -> List[str]:
+        return [
+            f"// -- {self.line} --",
+            f"@{self.RESERVED_LOC[self.var_type]}",
+            "D=M",
+            f"@{self.val}",
+            "D=D+A",
+            "@14",
+            "M=D",
+        ] + self._footer
 
     @property
     def _footer(self) -> List[str]:
         return [
             "@SP",
-            "AM=M-1",
+            "M=M-1",
+            "A=M",
             "D=M",
             "@14",
             "A=M",
             "M=D",
+            ""
         ]
 
-    def to_asm_offset_pop(self, base_val: int) -> List[str]:
+    def to_asm_static_pop(self) -> List[str]:
         return [
-            f"@{self.val + base_val}",
-            "D=A",
-            "@14",
+            f"// -- {self.line} --",
+            "@SP",
+            "M=M-1",
+            "A=M",
+            "D=M",
+            f"@{self.file_name}.{self.val}",
             "M=D",
+            ""
         ]
 
-    def to_asm_name_pop(self) -> List[str]:
+
+class VMRowLabel(VMRowBase):
+    MATCH_RE = re.compile("label", re.I)
+
+    def to_asm(self) -> List[str]:
+        return[
+            f"// -- {self.line} -- ",
+            f"({self._get_arg(1)})",
+            ""
+        ]
+
+
+class VMRowGoTo(VMRowBase):
+    MATCH_RE = re.compile(r"^goto", re.I)
+
+    def to_asm(self) -> List[str]:
         return [
-            f"@{self.val}",
-            "D=A",
-            f"@{self.RESERVED_LOC[self.var_type]}",
-            "D=D+M",
-            "@14",
-            "M=D",
+            f"// -- {self.line} --",
+            f"@{self._get_arg(1)}",
+            "0;JMP"
+            "",
+        ]
+
+
+class VMRowIf(VMRowBase):
+    MATCH_RE = re.compile(r"if", re.I)
+
+    def to_asm(self) -> List[str]:
+        return [
+            f"// -- {self.line} --",
+            "@SP",
+            "AM=M-1",
+            "D=M",
+            f"@{self._get_arg(1)}",
+            "D;JNE",
+            "",
         ]
 
 
@@ -352,19 +386,23 @@ class VMTranslater:
     def __init__(self, src: str):
         # read
         self.src = os.path.abspath(src)
-        self._asm_rows: List[str] = [r for r in VMRowInit().to_asm()]
+        self._asm_rows: List[str] = []
+        self.file_name = os.path.basename(src).split(".")[0]
         self._vm_row_types: List[VMRowBase] = [
-            VMRowSub(),
-            VMRowNeg(),
-            VMRowAdd(),
-            VMRowEq(),
-            VMRowGt(),
-            VMRowLt(),
-            VMRowAnd(),
-            VMRowOr(),
-            VMRowNot(),
-            VMRowPop(),
-            VMRowPush(),
+            VMRowSub(self),
+            VMRowNeg(self),
+            VMRowAdd(self),
+            VMRowEq(self),
+            VMRowGt(self),
+            VMRowLt(self),
+            VMRowAnd(self),
+            VMRowOr(self),
+            VMRowNot(self),
+            VMRowPop(self),
+            VMRowPush(self),
+            VMRowLabel(self),
+            VMRowGoTo(self),
+            VMRowIf(self),
         ]
         # read
         self._read(self.src)
@@ -412,5 +450,11 @@ if __name__ == '__main__':
         translate(memory_access_dir, "PointerTest")
         translate(memory_access_dir, "StaticTest")
 
-    # test()
-    main()
+        function_calls = os.path.join("__file__", os.pardir, os.pardir, "08", "FunctionCalls")
+        translate(function_calls, "SimpleFunction")
+
+    try:
+        test()
+    except Exception as e:
+        logging.debug(str(e))
+        main()

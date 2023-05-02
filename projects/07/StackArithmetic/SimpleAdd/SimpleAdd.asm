@@ -1,8 +1,3 @@
-// -- init --
-@256
-D=A
-@SP
-M=D
 // -- push constant 7 --
 @7
 D=A
@@ -25,10 +20,7 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
+A=A-1
 D=D+M
 M=D
-@SP
-M=M+1
 

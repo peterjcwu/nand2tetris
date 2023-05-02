@@ -1,8 +1,3 @@
-// -- init --
-@256
-D=A
-@SP
-M=D
 // -- push constant 10 --
 @10
 D=A
@@ -12,19 +7,21 @@ M=D
 @SP
 M=M+1
 
-// -- pop local 0 -- 
-@0
-D=A
+// -- pop local 0 --
 @LCL
-D=D+M
+D=M
+@0
+D=D+A
 @14
 M=D
 @SP
-AM=M-1
+M=M-1
+A=M
 D=M
 @14
 A=M
 M=D
+
 // -- push constant 21 --
 @21
 D=A
@@ -43,32 +40,36 @@ M=D
 @SP
 M=M+1
 
-// -- pop argument 2 -- 
+// -- pop argument 2 --
+@ARG
+D=M
 @2
-D=A
-@ARG
-D=D+M
+D=D+A
 @14
 M=D
 @SP
-AM=M-1
+M=M-1
+A=M
 D=M
 @14
 A=M
 M=D
-// -- pop argument 1 -- 
+
+// -- pop argument 1 --
+@ARG
+D=M
 @1
-D=A
-@ARG
-D=D+M
+D=D+A
 @14
 M=D
 @SP
-AM=M-1
+M=M-1
+A=M
 D=M
 @14
 A=M
 M=D
+
 // -- push constant 36 --
 @36
 D=A
@@ -78,19 +79,21 @@ M=D
 @SP
 M=M+1
 
-// -- pop this 6 -- 
-@6
-D=A
+// -- pop this 6 --
 @THIS
-D=D+M
+D=M
+@6
+D=D+A
 @14
 M=D
 @SP
-AM=M-1
+M=M-1
+A=M
 D=M
 @14
 A=M
 M=D
+
 // -- push constant 42 --
 @42
 D=A
@@ -109,32 +112,36 @@ M=D
 @SP
 M=M+1
 
-// -- pop that 5 -- 
+// -- pop that 5 --
+@THAT
+D=M
 @5
-D=A
-@THAT
-D=D+M
+D=D+A
 @14
 M=D
 @SP
-AM=M-1
+M=M-1
+A=M
 D=M
 @14
 A=M
 M=D
-// -- pop that 2 -- 
+
+// -- pop that 2 --
+@THAT
+D=M
 @2
-D=A
-@THAT
-D=D+M
+D=D+A
 @14
 M=D
 @SP
-AM=M-1
+M=M-1
+A=M
 D=M
 @14
 A=M
 M=D
+
 // -- push constant 510 --
 @510
 D=A
@@ -144,17 +151,19 @@ M=D
 @SP
 M=M+1
 
-// -- pop temp 6 -- 
+// -- pop temp 6 --
 @11
 D=A
 @14
 M=D
 @SP
-AM=M-1
+M=M-1
+A=M
 D=M
 @14
 A=M
 M=D
+
 // -- push local 0 --
 @LCL
 D=M
@@ -183,12 +192,9 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
+A=A-1
 D=D+M
 M=D
-@SP
-M=M+1
 
 // -- push argument 1 --
 @ARG
@@ -206,12 +212,9 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
+A=A-1
 D=M-D
 M=D
-@SP
-M=M+1
 
 // -- push this 6 --
 @THIS
@@ -241,23 +244,17 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
+A=A-1
 D=D+M
 M=D
-@SP
-M=M+1
 
 // -- sub --
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
+A=A-1
 D=M-D
 M=D
-@SP
-M=M+1
 
 // -- push temp 6 --
 @11
@@ -271,10 +268,7 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@SP
-AM=M-1
+A=A-1
 D=D+M
 M=D
-@SP
-M=M+1
 
