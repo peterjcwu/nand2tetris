@@ -106,10 +106,10 @@ class VMRowBase(ABC):
         return res
 
     @staticmethod
-    def bootstrap() -> List[str]:
+    def bootstrap(sp: int = 256) -> List[str]:
         return [
             "// -- bootstrap --",
-            "@256",
+            f"@{sp}",
             "D=A",
             "@SP",
             "M=D",
@@ -475,21 +475,17 @@ class VMRowReturn(VMRowBase):
             "M=D",  # END_FRAME = LCL"
             *save_var_from_frame(RETURN_ADDR, 5),
             *self.pop(),
-
             "@ARG",
             "A=M",
             "M=D",  # *ARG = *SP
-
             "@ARG",
             "D=M+1",
             "@SP",
             "M=D",  # SP = ARG + 1
-
             *save_var_from_frame('THAT', 1),
             *save_var_from_frame('THIS', 2),
             *save_var_from_frame('ARG', 3),
             *save_var_from_frame('LCL', 4),
-
             f"@{RETURN_ADDR}",
             "A=M",
             "0;JMP",  # goto RET
@@ -584,11 +580,16 @@ class VMTranslater:
             return
         vm_count = 0
         for f in os.listdir(self.src):
-            if f.endswith(".vm"):
+            if f.endswith(".vm") and f != 'Main.vm':
+                vm_count += 1
+                self._read_one(os.path.join(self.src, f))
+        # Main.vm push to last
+        for f in os.listdir(self.src):
+            if f == 'Main.vm':
                 vm_count += 1
                 self._read_one(os.path.join(self.src, f))
         if vm_count > 1:
-            self.push_first_bootstrap()
+            self.push_first_bootstrap(256 if os.path.basename(self.src) != "FibonacciElement" else 261)
 
     def _read_one(self, src):
         with open(src, "r") as f_in:
@@ -609,8 +610,8 @@ class VMTranslater:
             for asm_row in self._asm_rows:
                 f_out.write(asm_row + os.linesep)
 
-    def push_first_bootstrap(self):
-        self._asm_rows = VMRowBase.bootstrap() + self._asm_rows
+    def push_first_bootstrap(self, sp: int):
+        self._asm_rows = VMRowBase.bootstrap(sp) + self._asm_rows
         return self
 
 

@@ -1,9 +1,77 @@
 // -- bootstrap --
-@256
+@261
 D=A
 @SP
 M=D
 
+// -- function Sys.init 0 --
+(Sys.init)
+
+// -- push constant 4 --
+@4
+D=A
+@SP
+A=M
+M=D
+@SP
+M=M+1
+
+// -- call Main.fibonacci 1 --
+@Main.fibonacci$ret.13
+D=A
+@SP
+A=M
+M=D
+@SP
+M=M+1
+@LCL
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1
+@ARG
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1
+@THIS
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1
+@THAT
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1
+@6
+D=A
+@SP
+D=M-D
+@ARG
+M=D
+@SP
+D=M
+@LCL
+M=D
+@Main.fibonacci
+0;JMP
+(Main.fibonacci$ret.13)
+
+// -- label WHILE -- 
+(WHILE)
+
+// -- goto WHILE --
+@WHILE
+0;JMP
 // -- function Main.fibonacci 0 --
 (Main.fibonacci)
 
@@ -348,72 +416,4 @@ D=M
 M=D
 @R14
 A=M
-0;JMP
-// -- function Sys.init 0 --
-(Sys.init)
-
-// -- push constant 4 --
-@4
-D=A
-@SP
-A=M
-M=D
-@SP
-M=M+1
-
-// -- call Main.fibonacci 1 --
-@Main.fibonacci$ret.13
-D=A
-@SP
-A=M
-M=D
-@SP
-M=M+1
-@LCL
-D=M
-@SP
-A=M
-M=D
-@SP
-M=M+1
-@ARG
-D=M
-@SP
-A=M
-M=D
-@SP
-M=M+1
-@THIS
-D=M
-@SP
-A=M
-M=D
-@SP
-M=M+1
-@THAT
-D=M
-@SP
-A=M
-M=D
-@SP
-M=M+1
-@6
-D=A
-@SP
-D=M-D
-@ARG
-M=D
-@SP
-D=M
-@LCL
-M=D
-@Main.fibonacci
-0;JMP
-(Main.fibonacci$ret.13)
-
-// -- label WHILE -- 
-(WHILE)
-
-// -- goto WHILE --
-@WHILE
 0;JMP
