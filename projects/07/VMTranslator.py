@@ -4,6 +4,8 @@ import logging
 from abc import ABC
 from typing import List
 _label_counter = 0
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class VMRowBase(ABC):
@@ -62,6 +64,56 @@ class VMRowBase(ABC):
             'A=M-1',
             'M=-1',  # -1 for true
             f'({after_label})',
+        ]
+
+    @staticmethod
+    def push_name(name: str) -> List[str]:
+        return [
+            f"@{name}",
+            "D=M",
+            "@SP",
+            "A=M",
+            "M=D",
+            "@SP",
+            "M=M+1",
+            "",
+        ]
+
+    @staticmethod
+    def pop() -> List[str]:
+        return [
+            '@SP',
+            'M=M-1',  # point to top of stack
+            'A=M',
+            'D=M',  # pop in D
+        ]
+
+    @staticmethod
+    def push() -> List[str]:
+        return [
+            '@SP',
+            'A=M',
+            'M=D',  # * SP = D
+            '@SP',
+            'M=M+1',
+        ]
+
+    @classmethod
+    def push_names(cls, names: List[str]) -> List[str]:
+        res = []
+        for n in names:
+            res.extend(cls.push_name(n))
+        return res
+
+    @staticmethod
+    def bootstrap() -> List[str]:
+        return [
+            "// -- bootstrap --",
+            "@256",
+            "D=A",
+            "@SP",
+            "M=D",
+            "",
         ]
 
 
@@ -368,7 +420,7 @@ class VMRowGoTo(VMRowBase):
 
 
 class VMRowIf(VMRowBase):
-    MATCH_RE = re.compile(r"if", re.I)
+    MATCH_RE = re.compile(r"^if", re.I)
 
     def to_asm(self) -> List[str]:
         return [
@@ -382,12 +434,114 @@ class VMRowIf(VMRowBase):
         ]
 
 
+class VMRowFunction(VMRowBase):
+    MATCH_RE = re.compile(r"^function",  re.I)
+
+    def to_asm(self) -> List[str]:
+        return [f"// -- {self.line} --", f"({self._get_arg(1)})"] + \
+               [
+                   "@SP",
+                   "A=M",
+                   "M=0",
+                   "@SP",
+                   "M=M+1",  # push 0
+               ] * int(self._get_arg(2)) + \
+               [""]
+
+
+class VMRowReturn(VMRowBase):
+    MATCH_RE = re.compile(r"return", re.I)
+
+    def to_asm(self) -> List[str]:
+        END_FRAME: str = 'R13'
+        RETURN_ADDR: str = 'R14'
+
+        def save_var_from_frame(target, offset) -> List[str]:
+            return [
+                f"@{END_FRAME}",
+                "D=M",
+                f"@{offset}",
+                'A=D-A',
+                'D=M',
+                f"@{target}",
+                "M=D",
+            ]
+
+        return [
+            f"// -- return --",
+            "@LCL",
+            "D=M",
+            f"@{END_FRAME}",
+            "M=D",  # END_FRAME = LCL"
+            *save_var_from_frame(RETURN_ADDR, 5),
+            *self.pop(),
+
+            "@ARG",
+            "A=M",
+            "M=D",  # *ARG = *SP
+
+            "@ARG",
+            "D=M+1",
+            "@SP",
+            "M=D",  # SP = ARG + 1
+
+            *save_var_from_frame('THAT', 1),
+            *save_var_from_frame('THIS', 2),
+            *save_var_from_frame('ARG', 3),
+            *save_var_from_frame('LCL', 4),
+
+            f"@{RETURN_ADDR}",
+            "A=M",
+            "0;JMP",  # goto RET
+        ]
+
+    
+class VMRowCall(VMRowBase):
+    MATCH_RE = re.compile(r"^call", re.I)
+    
+    def to_asm(self) -> List[str]:
+        function_name = self._get_arg(1)
+        n_args = int(self._get_arg(2))
+        FRAME_SIZE = 5
+        RETURN_LABEL = f"{function_name}$ret.{self.lno}"
+
+        def push_val(addr) -> List[str]:
+            return [
+                f'@{addr}',
+                ('D=M' if re.search(r"LCL|ARG|THIS|THAT", addr, re.I) else 'D=A'),
+                *self.push()]
+
+        return [
+            f"// -- {self.line} --",
+            *push_val(RETURN_LABEL),
+            *push_val("LCL"),
+            *push_val("ARG"),
+            *push_val("THIS"),
+            *push_val("THAT"),
+            f"@{FRAME_SIZE + n_args}",
+            "D=A",
+            "@SP",  # ARG = SP - (n + 5)
+            "D=M-D",
+            "@ARG",
+            "M=D",
+
+            "@SP",  # LCL = SP
+            "D=M",
+            "@LCL",
+            "M=D",
+
+            f"@{function_name}",  # goto f
+            "0;JMP",
+            f"({RETURN_LABEL})",
+            "",
+        ]
+
+
 class VMTranslater:
     def __init__(self, src: str):
         # read
         self.src = os.path.abspath(src)
         self._asm_rows: List[str] = []
-        self.file_name = os.path.basename(src).split(".")[0]
         self._vm_row_types: List[VMRowBase] = [
             VMRowSub(self),
             VMRowNeg(self),
@@ -403,14 +557,40 @@ class VMTranslater:
             VMRowLabel(self),
             VMRowGoTo(self),
             VMRowIf(self),
+            VMRowFunction(self),
+            VMRowCall(self),
+            VMRowReturn(self),
         ]
-        # read
-        self._read(self.src)
-        # write
-        self.dst = re.sub(r"\.vm$", ".asm", self.src)
-        self._write(self.dst)
 
-    def _read(self, src: str):
+        self._read()
+
+        if os.path.exists(self.dst):
+            os.unlink(self.dst)  # clean previous output
+
+    @property
+    def file_name(self) -> str:
+        return os.path.basename(self.src).split(".")[0]
+
+    @property
+    def dst(self) -> str:
+        if os.path.isfile(self.src):
+            return re.sub(r"\.vm$", ".asm", self.src)
+        else:  # self.src is dir
+            return os.path.join(self.src, os.path.basename(self.src) + ".asm")
+
+    def _read(self):
+        if os.path.isfile(self.src):
+            self._read_one(self.src)
+            return
+        vm_count = 0
+        for f in os.listdir(self.src):
+            if f.endswith(".vm"):
+                vm_count += 1
+                self._read_one(os.path.join(self.src, f))
+        if vm_count > 1:
+            self.push_first_bootstrap()
+
+    def _read_one(self, src):
         with open(src, "r") as f_in:
             for i, line in enumerate(f_in.readlines()):
                 line = re.sub("//.*", "", line).strip()
@@ -420,11 +600,18 @@ class VMTranslater:
                     vm_row_type.update(line, i + 1)
                     if vm_row_type.match():
                         self._asm_rows.extend(vm_row_type.to_asm())
+                        break
+                else:
+                    raise Exception(f"op not found on line {i}: {line}")
 
-    def _write(self, dst: str):
-        with open(dst, "w", newline="") as f_out:
+    def write(self):
+        with open(self.dst, "w+", newline="") as f_out:
             for asm_row in self._asm_rows:
                 f_out.write(asm_row + os.linesep)
+
+    def push_first_bootstrap(self):
+        self._asm_rows = VMRowBase.bootstrap() + self._asm_rows
+        return self
 
 
 def main():
@@ -432,14 +619,16 @@ def main():
     parser = argparse.ArgumentParser(prog='VM Translater')
     parser.add_argument("src")
     args = parser.parse_args()
-    VMTranslater(args.src)
+    VMTranslater(args.src).write()
 
 
 if __name__ == '__main__':
     def test():
         def translate(dir1: str, dir2: str):
             p = os.path.abspath(os.path.join(dir1, dir2, dir2 + ".vm"))
-            VMTranslater(p)
+            if not os.path.isfile(p):
+                p = os.path.abspath(os.path.join(dir1, dir2))
+            VMTranslater(p).write()
 
         stack_arithmetic_dir = os.path.join(__file__, os.pardir, "StackArithmetic")
         translate(stack_arithmetic_dir, "SimpleAdd")
@@ -450,8 +639,15 @@ if __name__ == '__main__':
         translate(memory_access_dir, "PointerTest")
         translate(memory_access_dir, "StaticTest")
 
-        function_calls = os.path.join("__file__", os.pardir, os.pardir, "08", "FunctionCalls")
+        function_calls = os.path.join(__file__, os.pardir, os.pardir, "08", "FunctionCalls")
+        translate(function_calls, "FibonacciElement")
+        translate(function_calls, "NestedCall")
         translate(function_calls, "SimpleFunction")
+        translate(function_calls, "StaticsTest")
+
+        program_flow = os.path.join(__file__, os.pardir, os.pardir, "08", "ProgramFlow")
+        translate(program_flow, "BasicLoop")
+        translate(program_flow, "FibonacciSeries")
 
     try:
         test()
