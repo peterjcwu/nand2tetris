@@ -14,7 +14,7 @@ class VMRowBase(ABC):
     def __init__(self, translator):
         self.line: str = ""
         self.lno: int = 0
-        self.file_name = translator.file_name
+        self.translator = translator
 
     def _get_arg(self, i: int) -> str:
         return self.line.split(" ")[i]
@@ -296,7 +296,7 @@ class VMRowPush(VMRowBase):
     def to_asm_static_push(self) -> List[str]:
         return [
             f"// -- {self.line} --",
-            f"@{self.file_name}.{self.val}",
+            f"@{self.translator.file_name}.{self.val}",
             "D=M",
             "@SP",
             "A=M",
@@ -390,7 +390,7 @@ class VMRowPop(VMRowPush):
             "M=M-1",
             "A=M",
             "D=M",
-            f"@{self.file_name}.{self.val}",
+            f"@{self.translator.file_name}.{self.val}",
             "M=D",
             ""
         ]
@@ -537,6 +537,7 @@ class VMTranslater:
     def __init__(self, src: str):
         # read
         self.src = os.path.abspath(src)
+        self.file_name = os.path.basename(self.src).split(".")[0]
         self._asm_rows: List[str] = []
         self._vm_row_types: List[VMRowBase] = [
             VMRowSub(self),
@@ -564,10 +565,6 @@ class VMTranslater:
             os.unlink(self.dst)  # clean previous output
 
     @property
-    def file_name(self) -> str:
-        return os.path.basename(self.src).split(".")[0]
-
-    @property
     def dst(self) -> str:
         if os.path.isfile(self.src):
             return re.sub(r"\.vm$", ".asm", self.src)
@@ -579,20 +576,32 @@ class VMTranslater:
             self._read_one(self.src)
             return
         vm_count = 0
+
         for f in os.listdir(self.src):
-            if f.endswith(".vm") and f != 'Main.vm':
+            if f == "Sys.vm":
                 vm_count += 1
                 self._read_one(os.path.join(self.src, f))
+
+        for f in os.listdir(self.src):
+            if f.endswith(".vm") and f != 'Main.vm' and f != "Sys.vm":
+                vm_count += 1
+                self._read_one(os.path.join(self.src, f))
+
         # Main.vm push to last
         for f in os.listdir(self.src):
             if f == 'Main.vm':
                 vm_count += 1
                 self._read_one(os.path.join(self.src, f))
         if vm_count > 1:
-            self.push_first_bootstrap(256 if os.path.basename(self.src) != "FibonacciElement" else 261)
+            if  os.path.basename(self.src) in ["FibonacciElement", "StaticsTest"]:
+                sp = 261
+            else:
+                sp = 256
+            self.push_first_bootstrap(sp)
 
-    def _read_one(self, src):
-        with open(src, "r") as f_in:
+    def _read_one(self, cur_file: str):
+        self.file_name = os.path.basename(cur_file).split(".")[0]
+        with open(cur_file, "r") as f_in:
             for i, line in enumerate(f_in.readlines()):
                 line = re.sub("//.*", "", line).strip()
                 if not line:
