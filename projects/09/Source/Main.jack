@@ -1,0 +1,13 @@
+/* Play Nim game with computer */
+class Main {
+   function void main() {
+      var int state;
+      var Nim nim;
+
+      let state = Keyboard.readInt("Init Nim with how many chips? ");
+      let nim = Nim.new(state);
+      do nim.start();
+      do nim.dispose();
+      return;
+   }
+}

@@ -1,0 +1,90 @@
+/* Nim game engine */
+class Nim {
+   field int initState;
+   field int state;
+    
+   constructor Nim new(int s) {
+      let initState = s;
+      return this;
+   }
+
+   method void dispose() {
+      do Memory.deAlloc(this);
+      return;
+   }
+
+   /* Start Nim game */
+   method void start() {
+      var int n;
+      var int isValid;
+      var int computerTake;
+
+      let state = initState;
+      do Output.printString("Take one to three chip from a pile contains ");
+      do Output.printInt(state);
+      do Output.printString(" chips...");
+      do Output.println();
+      
+      while (state > 0) {
+         do Output.println();
+         do Output.printString("How many chip you would like to take from ");
+         do Output.printInt(state);
+
+         /* Your turn */
+         let n = Keyboard.readInt(" chips: ");
+         let isValid = isValidInput(n);
+
+         if (isValid) {
+            let state = state - n;
+            if (state < 0 | state = 0) {
+               do Output.println();
+               do Output.printString("You Loss -_-");
+               return;
+            }
+
+            /* Computer's turn */
+            if (n > 0) {
+               let computerTake = bestMoveCal();
+               do Output.printString("Computer took ");
+               do Output.printInt(computerTake);
+               do Output.printString(" chips...");
+               do Output.println();
+               let state = state - computerTake;
+            }
+            if (state < 0 | state = 0) {
+               do Output.println();
+               do Output.printString("You Win ^_^");
+               return;
+            } 
+         }
+      }
+      return;
+   }
+
+   method int bestMoveCal() {
+      var int tmp;
+      let tmp = mod(state, 4);
+      if (tmp = 2) {
+         return 1;
+      }
+      if (tmp = 3) {
+         return 2;
+      }
+      if (tmp = 0) {
+         return 3;
+      }
+      return 1;
+   }
+
+   method int isValidInput(int n) {
+      if (n > 3){
+         do Output.println("Can only take less than 3 chips. Try again....");
+         return 0;
+      } 
+      return 1;
+   }
+
+   method int mod(int a, int b) {
+      return a - (b * Math.divide(a, b));
+   }
+}
