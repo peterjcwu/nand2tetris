@@ -1,54 +1,228 @@
 import os
+import re
 from argparse import ArgumentParser
-from typing import List
-from antlr4 import *
-from JackLexer import JackLexer
-from JackParser import JackParser
-from JackListener import JackListener
+from typing import List, Set, Tuple
 
 
-class JackXMLPrinter(JackListener):
-    def __init__(self, xml_path: str):
-        self.xml_path = xml_path
-        self.fp = None
-        self._indent = 0
+class JackTokenizer:
+    TOKEN_TYPES = {"keyword", "symbol", "identifier", "integerConst", "stringConst"}
+    KEY_WORDS = {"class", "method", "function", "constructor", "int", "boolean", "char", "void", "var",
+                 "static", "field", "let", "do", "if", "else", "while", "return", "true", "false", "null", "this"}
+    SYMBOLS: Set[str] = {'{', '}', '(', ')', '[', ']', '.', ',', ';', '+', '-', '*', '/', '&', '|',
+                         '<', '>', '=', '~'}
 
-    def __enter__(self):
-        self.fp = open(self.xml_path, "w", newline="")
-        return self
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+        self.tokens: List[Tuple[str, str]] = []
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.fp.close()
+        with open(self.file_path) as f_in:
+            lines: List[str] = []
+            for line in f_in.readlines():
+                line = line.split("//")[0]
+                line = line.strip()
+                if line:
+                    lines.append(line)
+        self.advance(" ".join(lines))
+        for t in self.tokens:
+            print(t)
 
-    def enterProg(self, ctx):
-        self.fp.write("<class>" + os.linesep)
-        self._indent = 1
+    def advance(self, text: str) -> None:
+        """
+        Gets the next token from the input and makes it the current token
+        This method should be called if the has_more_tokens is True.
+        :return: None
+        """
+        text = re.sub(r"/\*.*\*/", "", text)
+        string_literals = re.findall(r'\".*?\"', text)
+        for i, s in enumerate(string_literals):
+            text = text.replace(s, f"\\{i}\\")
 
-    def exitProg(self, ctx):
-        self.fp.write("</class>" + os.linesep)
-        self._indent = 0
+        for t in re.split(r"\s+", text):
+            cur_token = ""
+            i = 0
+            while i < len(t):
+                cur_token += t[i]
+                # handle keyword
+                if cur_token in self.KEY_WORDS:
+                    self.tokens.append(("keyword", cur_token))
+                    cur_token = ""
+                    i += 1
+                # handle symbols
+                elif t[i] in self.SYMBOLS:
+                    if len(cur_token) > 1:
+                        self.tokens.append(("identifier", cur_token[:-1]))
+                        cur_token = ""
+                    self.tokens.append(("symbol", t[i]))
+                    i += 1
+
+                if cur_token == "\\":
+                    while i < len(t) and t[i+1] != "\\":
+                        cur_token += t[i]
+                        i += 1
+                    cur_token.replace("\\", "")
+                    self.tokens.append(("stringConst", string_literals(int(cur_token))))
+                    cur_token = ""
+                    i += 1  # last \\
+                else:
+                    i += 1
+
+
+            # handle symbol
+            # handle identifier
+            # handle int_const,
+            # handle str_const
+
+    @staticmethod
+    def is_num(val: any) -> bool:
+        try:
+            float(val)
+            return True
+        except ValueError:
+            return False
+
+    @property
+    def symbol(self) -> str:
+        """
+        Should be called only when token_type is SYMBOL
+        :return: the character which is the current token
+        """
+        return ""
+
+    @property
+    def identifier(self) -> str:
+        """
+        Should be called only when token_type is IDENTIFIER
+        :return: the identifier which is the current token
+        """
+        return ""
+
+    @property
+    def int_val(self) -> int:
+        """
+        Should be called only when token_type is INT_CONST
+        :return: the integer value of the current token
+        """
+        return 0
+
+    @property
+    def string_val(self) -> str:
+        """
+        Should be called only when token_type is STRING_CONST
+        :return: the string value of the current token
+        """
+        return ""
+
+
+class CompilationEngine:
+    def __init__(self, tokenizer: JackTokenizer):
+        """
+        Creates a new compilation engine with the given input and output.
+        The next routine called must be compile_class
+        """
+        self.tokenizer = tokenizer
+        self.xml_path = os.path.splitext(tokenizer.file_path)[0] + ".xml"
+        print(self.xml_path)
+
+    def compile_class(self) -> None:
+        """
+        Compiles a complete class
+        """
+        pass
+
+    def compile_class_var_dec(self) -> None:
+        """
+        Compiles a static declaration or a filed declaration.
+        """
+        pass
+
+    def compile_subroutine(self) -> None:
+        """
+        Compiles a complete method, function or constructor.
+        """
+        pass
+
+    def compile_parameter_list(self) -> None:
+        """
+        Compiles a (possible empty) parameter list, not including
+        the enclosing "{}".
+        """
+        pass
+
+    def compile_var_dec(self) -> None:
+        """
+        Compiles a var declaration
+        """
+        pass
+
+    def compile_statements(self) -> None:
+        """
+        Compiles a sequence of statements, not including the
+        enclosing "{}".
+        """
+        pass
+
+    def compile_do(self) -> None:
+        pass
+
+    def compile_let(self) -> None:
+        pass
+
+    def compile_while(self) -> None:
+        pass
+
+    def compile_return(self) -> None:
+        pass
+
+    def compile_if(self) -> None:
+        pass
+
+    def compile_expression(self) -> None:
+        pass
+
+    def compile_term(self) -> None:
+        """
+        Compiles a term. This routine is faced with a slight difficulty  when
+        trying to decide between some alternative parsing rules.
+        Specifically, if the current token is an identifier, the routine
+        must distinguish between a variable, an array entry, and a subroutine
+        call. A single look-ahead token, which may be one of "|", "(", or "."
+        suffices to distinguish between the three possibilities. Any other token
+        is not part of the term and should not be advance over.
+        """
+        pass
+
+    def compile_expression_list(self) -> None:
+        """
+        Compiles a (possibly empty) comma-separated list of expressions.
+        """
 
 
 class JackAnalyzer:
     def __init__(self, input_files: List[str]):
-        self.compile_grammar()
         for f in input_files:
             assert os.path.isfile(f)
-            xml_path = f.replace(".jack", ".xml")
-            lexer = JackLexer(FileStream(f))
-            stream = CommonTokenStream(lexer)
-            parser = JackParser(stream)
-            tree = parser.prog()
 
-            with JackXMLPrinter(xml_path) as printer:
-                walker = ParseTreeWalker()
-                walker.walk(printer, tree)
-
-    def compile_grammar(self):
-        os.system("antlr4 -Dlanguage=Python3 Jack.g4 ")
 
 if __name__ == '__main__':
-    arg_parser = ArgumentParser()
-    arg_parser.add_argument("src", help="jack src file or src dir")
-    arg = arg_parser.parse_args()
-    print(arg.src)
+    from glob import glob
+    import logging
+
+    def main(file_path: str):
+        for f in get_files(os.path.abspath(file_path)):
+            tokenizer = JackTokenizer(f)
+            CompilationEngine(tokenizer)
+
+
+    def get_files(file_path: str) -> List[str]:
+        if os.path.isfile(file_path) and file_path.endswith(".jack"):
+            return [file_path]
+        elif os.path.isdir(file_path):
+            return list(glob(f"{file_path}/*.jack"))
+        logging.error("no jack file was found!")
+        return []
+
+
+    parser = ArgumentParser()
+    parser.add_argument("src", help="jack src file or src dir")
+    arg = parser.parse_args()
+    main(arg.src)
