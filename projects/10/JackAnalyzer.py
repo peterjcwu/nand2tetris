@@ -5,7 +5,7 @@ from typing import List, Set, Tuple
 
 
 class JackTokenizer:
-    TOKEN_TYPES = {"keyword", "symbol", "identifier", "integerConst", "stringConst"}
+    TOKEN_TYPES = {"keyword", "symbol", "identifier", "integerConstant", "stringConstant"}
     KEY_WORDS = {"class", "method", "function", "constructor", "int", "boolean", "char", "void", "var",
                  "static", "field", "let", "do", "if", "else", "while", "return", "true", "false", "null", "this"}
     SYMBOLS: Set[str] = {'{', '}', '(', ')', '[', ']', '.', ',', ';', '+', '-', '*', '/', '&', '|',
@@ -26,6 +26,14 @@ class JackTokenizer:
         for t in self.tokens:
             print(t)
 
+    def to_tokens(self):
+        dst = os.path.splitext(self.file_path)[0] + "T.xml"
+        with open(dst, "w", newline="") as f_out:
+            f_out.write("<tokens>" + os.linesep)
+            for k, v in self.tokens:
+                f_out.write(f"<{k}> {v} </{k}>"+ os.linesep)
+            f_out.write("</tokens>" + os.linesep)
+
     def advance(self, text: str) -> None:
         """
         Gets the next token from the input and makes it the current token
@@ -42,35 +50,47 @@ class JackTokenizer:
             i = 0
             while i < len(t):
                 cur_token += t[i]
-                # handle keyword
+                # keyword
                 if cur_token in self.KEY_WORDS:
                     self.tokens.append(("keyword", cur_token))
                     cur_token = ""
                     i += 1
-                # handle symbols
+
+                # string const
+                elif cur_token == "\\":
+                    while i + 1 < len(t) and t[i + 1] != "\\":
+                        cur_token += t[i + 1]
+                        i += 1
+                    cur_token = cur_token.replace("\\", "")
+                    self.tokens.append(("stringConstant", string_literals[int(cur_token)].replace('"', "")))
+                    cur_token = ""
+                    i += 2  # last \\
+
+                # symbols
                 elif t[i] in self.SYMBOLS:
                     if len(cur_token) > 1:
                         self.tokens.append(("identifier", cur_token[:-1]))
-                        cur_token = ""
-                    self.tokens.append(("symbol", t[i]))
+                    if t[i] == ">":
+                        self.tokens.append(("symbol",  "&gt;"))
+                    elif t[i] == "<":
+                        self.tokens.append(("symbol", "&lt;"))
+                    else:
+                        self.tokens.append(("symbol", t[i]))
+                    cur_token = ""
                     i += 1
 
-                if cur_token == "\\":
-                    while i < len(t) and t[i+1] != "\\":
-                        cur_token += t[i]
+                # integer const
+                elif self.is_num(cur_token):
+                    while i + 1 < len(t) and self.is_num(cur_token + t[i+1]):
+                        cur_token = cur_token + t[i+1]
                         i += 1
-                    cur_token.replace("\\", "")
-                    self.tokens.append(("stringConst", string_literals(int(cur_token))))
+                    self.tokens.append(("integerConstant", cur_token))
                     cur_token = ""
-                    i += 1  # last \\
+                    i += 1
                 else:
                     i += 1
-
-
-            # handle symbol
-            # handle identifier
-            # handle int_const,
-            # handle str_const
+            if cur_token:
+                self.tokens.append(("identifier", cur_token))
 
     @staticmethod
     def is_num(val: any) -> bool:
@@ -121,7 +141,11 @@ class CompilationEngine:
         """
         self.tokenizer = tokenizer
         self.xml_path = os.path.splitext(tokenizer.file_path)[0] + ".xml"
-        print(self.xml_path)
+        self.compile()
+
+    def compile(self) -> None:
+        for t in self.tokenizer.tokens:
+            pass
 
     def compile_class(self) -> None:
         """
@@ -210,6 +234,7 @@ if __name__ == '__main__':
     def main(file_path: str):
         for f in get_files(os.path.abspath(file_path)):
             tokenizer = JackTokenizer(f)
+            # tokenizer.to_tokens()  # only for debug
             CompilationEngine(tokenizer)
 
 
