@@ -23,8 +23,6 @@ class JackTokenizer:
                 if line:
                     lines.append(line)
         self.advance(" ".join(lines))
-        for t in self.tokens:
-            print(t)
 
     def to_tokens(self):
         dst = os.path.splitext(self.file_path)[0] + "T.xml"
@@ -135,23 +133,27 @@ class JackTokenizer:
 
 class CompilationEngine:
     def __init__(self, tokenizer: JackTokenizer):
-        """
-        Creates a new compilation engine with the given input and output.
-        The next routine called must be compile_class
-        """
         self.tokenizer = tokenizer
         self.xml_path = os.path.splitext(tokenizer.file_path)[0] + ".xml"
-        self.compile()
+        self.indent = 0
+        self.fp = None
 
-    def compile(self) -> None:
-        for t in self.tokenizer.tokens:
-            pass
+    def __enter__(self):
+        pass
+
+    def __exit__(self):
+        pass
+
+    def to_xml(self):
+        with open(self.xml_path, "w", newline="") as f_out:
+            self.compile_class()
 
     def compile_class(self) -> None:
         """
         Compiles a complete class
         """
-        pass
+        v, t = self.tokenizer.tokens.pop(0)
+        print()
 
     def compile_class_var_dec(self) -> None:
         """
@@ -234,17 +236,20 @@ if __name__ == '__main__':
     def main(file_path: str):
         for f in get_files(os.path.abspath(file_path)):
             tokenizer = JackTokenizer(f)
-            # tokenizer.to_tokens()  # only for debug
-            CompilationEngine(tokenizer)
-
+            tokenizer.to_tokens()  # only for debug
+            compilation_engine = CompilationEngine(tokenizer)
+            compilation_engine.to_xml()
 
     def get_files(file_path: str) -> List[str]:
-        if os.path.isfile(file_path) and file_path.endswith(".jack"):
-            return [file_path]
-        elif os.path.isdir(file_path):
-            return list(glob(f"{file_path}/*.jack"))
-        logging.error("no jack file was found!")
-        return []
+        # single jack file
+        if os.path.isfile(file_path):
+            if file_path.endswith(".jack"):
+                return [file_path]
+            else:
+                logging.error("no jack file was found!")
+                return []
+        # jack file folder
+        return list(glob(f"{file_path}/*.jack"))
 
 
     parser = ArgumentParser()
