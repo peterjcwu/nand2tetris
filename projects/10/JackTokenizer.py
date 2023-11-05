@@ -23,7 +23,7 @@ class JackTokenizer:
                     lines.append(line)
 
         text = " ".join(lines)
-        text = re.sub(r"/\*.*\*/", "", text)
+        text = re.sub(r"/\*.*?\*/", "", text)
 
         # replace string literals with number
         self.string_literals = re.findall(r'\".*?\"', text)
@@ -80,6 +80,9 @@ class JackTokenizer:
                     yield "symbol",  "&gt;"
                 elif t[i] == "<":
                     yield "symbol", "&lt;"
+
+                elif t[i] == "&":
+                    yield "symbol", "&amp;"
                 else:
                     yield "symbol", t[i]
                 cur_token = ""
@@ -147,4 +150,19 @@ class JackTokenizer:
                 f_out.write(f"<{self.token_type()}> {token} </{self.token_type()}>" + os.linesep)
             f_out.write("</tokens>" + os.linesep)
         # reset
-        self.i = 0
+        self.i = -1
+
+    def is_keyword(self) -> bool:
+        return self.token_type() == "keyword"
+
+    def is_symbol(self) -> bool:
+        return self.token_type() == "symbol"
+
+    def is_identifier(self) -> bool:
+        return self.token_type() == "identifier"
+
+    def is_integer_constant(self) -> bool:
+        return self.token_type() == "integerConstant"
+
+    def is_string_contant(self) -> bool:
+        return self.token_type() == "stringConstant"

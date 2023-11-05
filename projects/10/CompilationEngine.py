@@ -1,3 +1,4 @@
+import logging
 import os
 from JackTokenizer import JackTokenizer
 
@@ -23,15 +24,16 @@ class CompilationEngine:
         token_type = self.tk.token_type()
         token = self.tk.token()
         self.fp.write("  " * self.indent_level + f"<{token_type}> {token} </{token_type}>\n")
-        self.tk.advance()
+        try:
+            self.tk.advance()
+        except Exception as e:
+            logging.debug(str(e))
 
     def compile_class(self) -> None:
-        """
-        Compiles a complete class
-        """
+        """ Compiles a complete class """
         self.tk.advance()
         assert self.tk.token_type() == "keyword"
-        assert self.tk.token() == "class"
+        assert self.tk.token() == "class", f"'{self.tk.token()}' != 'class'..."
         self.log("<class>\n")
         self.indent_level += 1
         self.log_type()
@@ -47,12 +49,35 @@ class CompilationEngine:
         self.compile_class_var_dec()
         self.compile_subroutine()
 
+        self.log_type()
+        self.indent_level -= 1
+        self.log("</class>\n")
+
     def compile_class_var_dec(self) -> None:
         """ Compiles a static declaration or a filed declaration. """
         while self.tk.token() in {"static", "field"}:
             self.log("<classVarDec>\n")
             self.indent_level += 1
             self.log_type()
+
+            assert self.tk.token() in {"boolean", "int", "char"} or self.tk.is_identifier()
+            self.log_type()
+
+            assert self.tk.is_identifier()
+            self.log_type()
+
+            while self.tk.is_symbol():
+                symbol = self.tk.token()
+                if symbol == ";":
+                    self.log_type()
+                    break
+                elif symbol == ",":
+                    self.log_type()
+                    assert self.tk.is_identifier()
+                    self.log_type()
+
+            self.indent_level -= 1
+            self.log("</classVarDec>\n")
 
     def compile_subroutine(self) -> None:
         """ Compiles a complete method, function or constructor. """
@@ -67,30 +92,7 @@ class CompilationEngine:
             # function name
             assert self.tk.token_type() == "identifier"
             self.log_type()
-
-            # (
-            assert self.tk.token_type() == "symbol"
-            self.log_type()
-
-            # parameters of function
-            self.log("<parameterList>\n")
-            self.indent_level += 1
-            while self.tk.token_type() in {"identifier", "keyword"}:
-                self.log_type()
-
-                assert self.tk.token_type() == "identifier"
-                self.log_type()
-
-                assert self.tk.token_type() == "symbol"
-                if self.tk.token() == ")":
-                    break
-                self.log_type()
-
-            self.indent_level -= 1
-            self.log("</parameterList>\n")
-
-            assert self.tk.token_type() == "symbol"
-            self.log_type()
+            self.compile_parameter_list()
 
             # subroutine body
             self.log("<subroutineBody>\n")
@@ -101,19 +103,39 @@ class CompilationEngine:
             self.compile_var_dec()
             self.compile_statements()
 
-            # assert self.tk.token_type == "symbol"
-            # self.log_type()
-            # self.indent_level -= 1
-            # self.log("</subroutineBody>\n")
-            # self.indent_level -= 1
-            # self.log("</subroutineDec>\n")
+            assert self.tk.is_symbol()
+            self.log_type()
+
+            self.indent_level -= 1
+            self.log("</subroutineBody>\n")
+            self.indent_level -= 1
+            self.log("</subroutineDec>\n")
 
     def compile_parameter_list(self) -> None:
-        """
-        Compiles a (possible empty) parameter list, not including
-        the enclosing "{}".
-        """
-        pass
+        """ Compiles a (possible empty) parameter list, not including the enclosing "{}" """
+        # (
+        assert self.tk.token_type() == "symbol"
+        self.log_type()
+
+        self.log("<parameterList>\n")
+        self.indent_level += 1
+        while self.tk.token_type() in {"identifier", "keyword"}:
+            self.log_type()
+
+            assert self.tk.token_type() == "identifier"
+            self.log_type()
+
+            assert self.tk.token_type() == "symbol"
+            if self.tk.token() == ")":
+                break
+            self.log_type()
+
+        self.indent_level -= 1
+        self.log("</parameterList>\n")
+
+        # )
+        assert self.tk.token_type() == "symbol"
+        self.log_type()
 
     def compile_var_dec(self) -> None:
         """ Compiles a var declaration """
@@ -142,25 +164,165 @@ class CompilationEngine:
 
     def compile_statements(self) -> None:
         """ Compiles a sequence of statements, not including the enclosing '{}' """
-        pass
-
-    def compile_do(self) -> None:
-        pass
-
-    def compile_let(self) -> None:
-        pass
-
-    def compile_while(self) -> None:
-        pass
+        self.log("<statements>\n")
+        self.indent_level += 1
+        while self.tk.token() in {"return", "do", "let", "if", "while"}:
+            if self.tk.token() == "return":
+                self.compile_return()
+            elif self.tk.token() == "do":
+                self.compile_do()
+            elif self.tk.token() == "let":
+                self.compile_let()
+            elif self.tk.token() == "if":
+                self.compile_if()
+            elif self.tk.token() == "while":
+                self.compile_while()
+        self.indent_level -= 1
+        self.log("</statements>\n")
 
     def compile_return(self) -> None:
-        pass
+        self.log("<returnStatement>\n")
+        self.indent_level += 1
+        self.log_type()
+        if self.tk.is_symbol():
+            self.log_type()
+        elif self.tk.is_identifier() or self.tk.is_keyword():
+            self.compile_expression()
+            assert self.tk.is_symbol()
+            self.log_type()
+        else:
+            raise Exception("Error")
+        self.indent_level -= 1
+        self.log("</returnStatement>\n")
+
+    def compile_do(self) -> None:
+        self.log("<doStatement>\n")
+        self.indent_level += 1
+        self.log_type()
+        assert self.tk.is_identifier()
+        self.log_type()
+        if self.tk.token() == "[":
+            self.log_type()
+            self.compile_expression()
+            assert self.tk.is_symbol() and self.tk.token() == "]"
+            self.log_type()
+
+        assert self.tk.is_symbol()
+        symbol = self.tk.token()
+        self.log_type()
+        if symbol == ".":
+            assert self.tk.is_identifier()
+            self.log_type()
+            assert self.tk.is_symbol()
+            self.log_type()
+        elif symbol != "(":
+            raise Exception("Error")
+
+        self.compile_expression_list()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        self.indent_level -= 1
+        self.log("</doStatement>\n")
+
+    def compile_let(self) -> None:
+        self.log("<letStatement>\n")
+        self.indent_level += 1
+        self.log_type()
+
+        assert self.tk.is_identifier()
+        self.log_type()
+
+        if self.tk.token() == "[":
+            self.log_type()
+            self.compile_expression()
+            assert self.tk.is_symbol() and self.tk.token() == "]"
+            self.log_type()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        self.compile_expression()
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        self.indent_level -= 1
+        self.log("</letStatement>\n")
+
+    def compile_while(self) -> None:
+        self.log("<whileStatement>\n")
+        self.indent_level += 1
+        self.log_type()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        self.compile_expression()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        self.compile_statements()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        self.indent_level -= 1
+        self.log("</whileStatement>\n")
 
     def compile_if(self) -> None:
-        pass
+        self.log("<ifStatement>\n")
+        self.indent_level += 1
+        self.log_type()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        self.compile_expression()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        self.compile_statements()
+
+        assert self.tk.is_symbol()
+        self.log_type()
+
+        if self.tk.token() == "else":
+            self.compile_else_statement()
+
+        self.indent_level -= 1
+        self.log("</ifStatement>\n")
+
+    def compile_else_statement(self) -> None:
+        self.log_type()
+        assert self.tk.is_symbol() and self.tk.token() == "{"
+        self.log_type()
+
+        self.compile_statements()
+
+        assert self.tk.is_symbol() and self.tk.token() == "}"
+        self.log_type()
 
     def compile_expression(self) -> None:
-        pass
+        self.log("<expression>\n")
+        self.indent_level += 1
+        self.compile_term()
+        while self.tk.token() in {"+", "-", "*", "/", "&amp;", "|", "&lt;", "&gt;", "="}:
+            self.log_type()
+            self.compile_term()
+        self.indent_level -= 1
+        self.log("</expression>\n")
 
     def compile_term(self) -> None:
         """
@@ -172,9 +334,58 @@ class CompilationEngine:
         suffices to distinguish between the three possibilities. Any other token
         is not part of the term and should not be advance over.
         """
-        pass
+        self.log("<term>\n")
+        self.indent_level += 1
+        if self.tk.is_identifier() or self.tk.is_keyword():
+            self.log_type()
+            if self.tk.is_symbol():
+                symbol = self.tk.token()
+                if symbol == ".":
+                    self.log_type()
+                    assert self.tk.is_identifier()
+                    self.log_type()
+
+                    assert self.tk.is_symbol()
+                    self.log_type()
+
+                    self.compile_expression_list()
+
+                    assert self.tk.is_symbol()
+                    self.log_type()
+
+                elif symbol == "[":
+                    self.log_type()
+                    self.compile_expression()
+                    assert self.tk.token() == "]"
+                    self.log_type()
+        elif self.tk.is_string_contant() or self.tk.is_integer_constant():
+            self.log_type()
+
+        elif self.tk.is_symbol():
+            symbol = self.tk.token()
+            if symbol == "(":
+                self.log_type()
+                self.compile_expression()
+                assert self.tk.token() == ")"
+                self.log_type()
+            elif symbol in {"-", "~"}:
+                self.log_type()
+                self.compile_term()
+            else:
+                raise Exception("Error")
+
+        self.indent_level -= 1
+        self.log("</term>\n")
 
     def compile_expression_list(self) -> None:
-        """
-        Compiles a (possibly empty) comma-separated list of expressions.
-        """
+        """ Compiles a (possibly empty) comma-separated list of expressions """
+        self.log("<expressionList>\n")
+        self.indent_level += 1
+        while not self.tk.is_symbol() or self.tk.token() == "(":
+            self.compile_expression()
+            assert self.tk.is_symbol()
+            if self.tk.token() == ")":
+                break
+            self.log_type()
+        self.indent_level -= 1
+        self.log("</expressionList>\n")
