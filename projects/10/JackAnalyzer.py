@@ -3,14 +3,14 @@ import logging
 import os
 from argparse import ArgumentParser
 from typing import List
-from JackTokenizer import JackTokenizer
-from CompilationEngine import CompilationEngine
+from tokenizer import Tokenizer
+from compilation_engine import CompilationEngine
 
 
 class JackAnalyzer:
     def __init__(self, file_path: str):
         for f in self.get_files(os.path.abspath(file_path)):
-            tokenizer = JackTokenizer(f)
+            tokenizer = Tokenizer(f)
             # tokenizer.to_tokens()  # only for debug
             with CompilationEngine(tokenizer) as ce:
                 ce.compile_class()

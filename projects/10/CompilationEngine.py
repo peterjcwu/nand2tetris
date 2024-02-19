@@ -1,10 +1,10 @@
 import logging
 import os
-from JackTokenizer import JackTokenizer
+from tokenizer import Tokenizer
 
 
 class CompilationEngine:
-    def __init__(self, tokenizer: JackTokenizer):
+    def __init__(self, tokenizer: Tokenizer):
         self.tk = tokenizer
         self.xml_path = os.path.splitext(tokenizer.file_path)[0] + ".xml"
         self.indent_level = 0
